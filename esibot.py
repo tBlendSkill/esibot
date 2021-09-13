@@ -7,6 +7,7 @@ import mechanize
 import requests
 import textwrap
 import io
+from boto.s3.connection import S3Connection
 
 #Documentation
 #Créer un salon textuel nommé esibot_config
@@ -243,5 +244,5 @@ def DrawWeekEdt(edt, config):
 
 
 #DrawWeekEdt(GetWeekEDT())
-client.run(process.env.TOKEN)
+client.run(os.environ['TOKEN'])
 
