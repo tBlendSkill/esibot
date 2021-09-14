@@ -129,7 +129,7 @@ async def WeekEDTLoop():
         Log("Toutes les mises à jour sont terminées.")
         time.sleep(60)
         await WeekEDTLoop()
-    except Exception as e:
+    except:
 	raise
         Log('Esibot a rencontré une erreur pendant la mise à jour des EDT.')
         Log("Erreur: " + str(e))
