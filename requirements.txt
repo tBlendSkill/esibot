@@ -1,9 +1,1 @@
 discord
-time
-datetime
-pytz
-bs4
-requests
-io
-os
-sys
