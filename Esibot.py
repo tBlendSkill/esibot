@@ -127,7 +127,7 @@ async def WeekEDTLoop():
                         Log("   Erreur: La configuration n°" + str(config) + " n'est pas complète. zombini_url ou weekedt_channel manquant(s).")
 
         Log("Toutes les mises à jour sont terminées.")
-        time.sleep(60)
+        time.sleep(3000)
         await WeekEDTLoop()
     except Exception as e:
         Log("Erreur: " + str(e))
