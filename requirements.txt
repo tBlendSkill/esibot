@@ -1,5 +1,5 @@
 discord
-PIL
+Pillow
 time
 datetime
 pytz
