@@ -1,5 +1,4 @@
 discord
-PIL=8.3.1
 time
 datetime
 pytz
