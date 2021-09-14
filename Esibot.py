@@ -227,7 +227,7 @@ async def WeekEDTLoop():
         time.sleep(25)
         time.sleep(25)
         time.sleep(25)
-	time.sleep(25)
+        time.sleep(25)
         time.sleep(25)
         time.sleep(25)
         time.sleep(25)
