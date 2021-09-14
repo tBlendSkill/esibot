@@ -81,7 +81,6 @@ async def WeekEDTLoop():
     guilds = {}
 
 
-    tr = 5/0
     await GetEsibotConfigChannels()
 
     for guild in guilds.keys(): #Pour chaque serveur
