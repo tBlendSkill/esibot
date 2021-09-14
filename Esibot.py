@@ -80,57 +80,60 @@ async def WeekEDTLoop():
     global guilds
     guilds = {}
 
+    try:
+        await GetEsibotConfigChannels()
 
-    await GetEsibotConfigChannels()
+        for guild in guilds.keys(): #Pour chaque serveur
+            Log("Mise à jour du serveur " + client.get_guild(int(guild)).name)
+            for config in guilds[guild].keys(): #Pour chaque message de configuration
+                if config.isnumeric():#Si c'est bien un msg de configuration
+                    if "zombini_url" in guilds[guild][config] and 'weekedt_channel' in guilds[guild][config]:
+                        Log("   Mise à jour d'après la configuration " + str(config))
 
-    for guild in guilds.keys(): #Pour chaque serveur
-        Log("Mise à jour du serveur " + client.get_guild(int(guild)).name)
-        for config in guilds[guild].keys(): #Pour chaque message de configuration
-            if config.isnumeric():#Si c'est bien un msg de configuration
-                if "zombini_url" in guilds[guild][config] and 'weekedt_channel' in guilds[guild][config]:
-                    Log("   Mise à jour d'après la configuration " + str(config))
+                        if not "weekedt_bg" in guilds[guild][config]:
+                            guilds[guild][config]["weekedt_bg"] = '#FFFFFF'
+                        if not "weekedt_header_bg" in guilds[guild][config]:
+                            guilds[guild][config]["weekedt_header_bg"] = '#C7A5FF'
 
-                    if not "weekedt_bg" in guilds[guild][config]:
-                        guilds[guild][config]["weekedt_bg"] = '#FFFFFF'
-                    if not "weekedt_header_bg" in guilds[guild][config]:
-                        guilds[guild][config]["weekedt_header_bg"] = '#C7A5FF'
+                        edt_dic = GetWeekEDT(guilds[guild][config])
+                        edt_arr = DrawWeekEdt(edt_dic, guilds[guild][config])
+                        edt_arr.seek(0)
+                        edt_file = discord.File(edt_arr, filename='edt.png')
 
-                    edt_dic = GetWeekEDT(guilds[guild][config])
-                    edt_arr = DrawWeekEdt(edt_dic, guilds[guild][config])
-                    edt_arr.seek(0)
-                    edt_file = discord.File(edt_arr, filename='edt.png')
+                        edt_next = GetNext(edt_dic)
+                        message_edt_next = ""
 
-                    edt_next = GetNext(edt_dic)
-                    message_edt_next = ""
+                        if edt_next != None:
+                            if edt_next['Title'] in guilds[guild][config]['weekedt_replacename']:
+                                edt_next['Title'] = guilds[guild][config]['weekedt_replacename'][edt_next['Title']].split('\\n')[0]
+                            edt_next['Location'] = edt_next['Location'].replace(' (V)', '')
 
-                    if edt_next != None:
-                        if edt_next['Title'] in guilds[guild][config]['weekedt_replacename']:
-                            edt_next['Title'] = guilds[guild][config]['weekedt_replacename'][edt_next['Title']].split('\\n')[0]
-                        edt_next['Location'] = edt_next['Location'].replace(' (V)', '')
+                            message_edt_next = '\n\nProchain cours: ' + edt_next['Title'] + " en salle " + edt_next['Location'] + " à " + edt_next['Start'] + "."
 
-                        message_edt_next = '\n\nProchain cours: ' + edt_next['Title'] + " en salle " + edt_next['Location'] + " à " + edt_next['Start'] + "."
+                            if edt_next['Location'] == "":
+                                message_edt_next = '\n\nProchain cours: ' + edt_next['Title'] + " à " + edt_next['Start'] + "."
+                            
+                        else:
+                            message_edt_next = "\n\nBon week-end !"
 
-                        if edt_next['Location'] == "":
-                            message_edt_next = '\n\nProchain cours: ' + edt_next['Title'] + " à " + edt_next['Start'] + "."
-                        
+                        async for message in client.get_channel(int(guilds[guild][config]['weekedt_channel'])).history():
+                            if message.author == client.user:
+                                if message.content.startswith('EDT ' + str(config)):
+                                    await message.delete()
+
+                        tz = pytz.timezone('Europe/Berlin')
+                        await client.get_channel(int(guilds[guild][config]['weekedt_channel'])).send(file=edt_file, content='EDT ' + str(config) + "\nDernière mise à jour: " + datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S") + message_edt_next)
                     else:
-                        message_edt_next = "\n\nBon week-end !"
+                        Log("   Erreur: La configuration n°" + str(config) + " n'est pas complète. zombini_url ou weekedt_channel manquant(s).")
 
-                    async for message in client.get_channel(int(guilds[guild][config]['weekedt_channel'])).history():
-                        if message.author == client.user:
-                            if message.content.startswith('EDT ' + str(config)):
-                                await message.delete()
-
-                    tz = pytz.timezone('Europe/Berlin')
-                    await client.get_channel(int(guilds[guild][config]['weekedt_channel'])).send(file=edt_file, content='EDT ' + str(config) + "\nDernière mise à jour: " + datetime.now(tz).strftime("%d/%m/%Y %H:%M:%S") + message_edt_next)
-                else:
-                    Log("   Erreur: La configuration n°" + str(config) + " n'est pas complète. zombini_url ou weekedt_channel manquant(s).")
-
-    Log("Toutes les mises à jour sont terminées.")
-    time.sleep(60)
-    await WeekEDTLoop()
-
-
+        Log("Toutes les mises à jour sont terminées.")
+        time.sleep(60)
+        await WeekEDTLoop()
+    except Exception as e:
+        Log("Erreur: " + str(e))
+        Log("Tentative de redémarrage dans 20 secondes...")
+        time.sleep(20)
+        await WeekEDTLoop()
 
 @client.event
 async def on_ready():
