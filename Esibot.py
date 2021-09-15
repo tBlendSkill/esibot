@@ -1,5 +1,6 @@
 import discord
 from PIL import Image, ImageDraw, ImageFont
+from discord.ext import commands, tasks
 import time
 from datetime import datetime
 import pytz
@@ -9,35 +10,9 @@ import io
 import os
 import sys
 
-#Documentation
-#Créer un salon textuel nommé esibot_config
-#Dans un même message, mettre 'add config' sur la 1ere ligne et mettre les paramètres souhaités sur ce modèle:
-#zombini_url:https://edt.zombini.fr/controler/edt.ctrl.php?classe=1A-TP1&page=1
-#weekedt_room:883450350345015410            (identifiant du salon où poster l'EDT)
 
-#Parameters
+
 WeekEDT_DayWidth = 384
-
-MatieresNameDictionary = {'CM MA121':'CM Maths\nMA121',
-'TD MA121':'TD Maths\nMA121',
-'CM PH101':'CM Physique\nPH101',
-'TD PH101':'TD Physique\nPH101',
-'CM IN101':'CM Intégration\nIN101',
-'TD IN101':'TD Intégration\nIN101',
-'CM AC101':'CM Automatique\nAC101',
-'TD AC101':'TD Automatique\nAC101',
-'CM EE121':'CM Électronique\nEE121',
-'TD EE121':'TD Électronique\nEE121',
-'CM LA101':'CM Anglais\nLA101',
-'TD LA101':'TD Anglais\nLA101',
-'CM SP101':'CM Sport\nSP101',
-'TD SP101':'TD Sport\nSP101',
-'CM CS101':'CM Programmation\nCS101',
-'TD CS101':'TD Programmation\nCS101',
-'CM MB111':'CM Communication écrite\nMB111',
-'TD MB111':'TD Communication écrite\nMB111'}
-MatieresColorDictionary = {}
-
 
 guilds = {}
 
@@ -76,6 +51,8 @@ async def GetEsibotConfigChannels():
                         msg = line.replace('weekedt_setcolor:', '')
                         guilds[str(guild.id)][str(message.id)]['weekedt_setcolor'][msg.split('][', 1)[0]] = msg.split('][', 1)[1]
 
+
+@tasks.loop(minutes=30)
 async def WeekEDTLoop():
     global guilds
     guilds = {}
@@ -127,157 +104,14 @@ async def WeekEDTLoop():
                         Log("   Erreur: La configuration n°" + str(config) + " n'est pas complète. zombini_url ou weekedt_channel manquant(s).")
 
         Log("Toutes les mises à jour sont terminées.")
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-        time.sleep(25)
-
-        await WeekEDTLoop()
+       
     except Exception as e:
         Log("Erreur: " + str(e))
-        Log("Tentative de redémarrage dans 20 secondes...")
-        time.sleep(20)
-        await WeekEDTLoop()
+        Log("Relancement de la boucle dans 20 secondes")
+        WeekEDTLoop.stop()
+        await time.sleep(20)
+        WeekEDTLoop.start()
+
 
 @client.event
 async def on_ready():
@@ -285,7 +119,7 @@ async def on_ready():
 
     Log("Esibot est en ligne.")
     guilds = {}
-    await WeekEDTLoop()
+    WeekEDTLoop.start()
 
 def GetWeekEDT(config):
     finaledt = {}
@@ -431,5 +265,6 @@ def GetNext(edt):
     return smallest[0]
 
     
+
 
 client.run(os.environ['TOKEN'])
