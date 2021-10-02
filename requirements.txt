@@ -1,4 +1,0 @@
-discord.py==1.7.3
-discord==1.7.3
-pytz==2021.1
-urllib3==1.26.6
