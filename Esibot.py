@@ -7,11 +7,13 @@ from discord.ext import tasks
 from PIL import Image, ImageDraw, ImageFont
 import io
 import time
+import os
+import sys
 
 #Constants
-AGALAN_USERNAME = ""
-AGALAN_PASSWORD = ""
-BOT_TOKEN = ""
+AGALAN_USERNAME = os.environ['AGALAN_USERNAME']
+AGALAN_PASSWORD = os.environ['AGALAN_PASSWORD']
+BOT_TOKEN = os.environ['BOT_TOKEN']
 PROMOTION_IDs = {"1ATP1":"5957", "1ATP2":"5956", "1ATP3":"5941", "1ATP4":"5953"}
 
 
@@ -61,22 +63,24 @@ def DownloadEDT(id):
     return result
 
 class Event:
-    Start = None
-    End = None
-    Name = None
-    Location = None
-    ID = None
-    Professor = None
+    def __init__(self):
+        self.Start = None
+        self.End = None
+        self.Name = None
+        self.Location = None
+        self.ID = None
+        self.Professor = None
 
 class EDT:
-    Lundi = []
-    Mardi = []
-    Mercredi = []
-    Jeudi = []
-    Vendredi = []
+    def __init__(self):
+        self.Lundi = []
+        self.Mardi = []
+        self.Mercredi = []
+        self.Jeudi = []
+        self.Vendredi = []
 
-    Min = 1440
-    Max = 0
+        self.Min = 1440
+        self.Max = 0
         
 def ParseEDT(edt):
     index = 0
@@ -164,18 +168,21 @@ def GetNextMatiere(edt, config):
         if delta >= 0 and delta < smallestDelta[1]:
             smallestDelta = (matiere, delta)
 
-    name = ""
-    if smallestDelta[0].ID != None:
-        name = smallestDelta[0].ID.split('_')[0][3:]
+    if smallestDelta[0] != None:
+        name = ""
+        if smallestDelta[0].ID != None:
+            name = smallestDelta[0].ID.split('_')[0][3:]
+        else:
+            name = smallestDelta[0].Name
+        if name in config.Name_Dictionary:
+            name = config.Name_Dictionary[name]
+        
+        if smallestDelta[0].Location != "":
+            return "Prochain cours: " + name + " en salle " + smallestDelta[0].Location.replace(' (V)', '') + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
+        else:
+            return "Prochain cours: " + name + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
     else:
-        name = smallestDelta[0].Name
-    if name in config.Name_Dictionary:
-        name = config.Name_Dictionary[name]
-    
-    if smallestDelta[0].Location != "":
-        return "Prochain cours: " + name + " en salle " + smallestDelta[0].Location.replace(' (V)', '') + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
-    else:
-        return "Prochain cours: " + name + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
+      return ""
 
 def DrawEDT(edt, config):
     img = Image.new('RGB', (config.width, config.height), config.background_color)
@@ -288,17 +295,17 @@ async def DeleteOldEDT(config):
             if message.content.startswith(config.name):
                 await message.delete()
 
-def Log(message):
+async def Log(message):
     UpdateTime()
     print('{' + str(now.time()) + '}   ' + message)
+    await client.get_channel(895410453335928863).send(content=message)
 
 
 @client.event
 async def on_ready():
     global now
 
-    Log("Esibot est en ligne.")
-
+    await Log("Esibot est en ligne.")
     Loop.start()
 
 
@@ -306,8 +313,8 @@ async def on_ready():
 async def Loop():
     UpdateTime()
 
-    if now.hour >= 7 or now.hour <= 22:
-        Log("Mise à jour en cours...")
+    if now.hour >= 7 and now.hour <= 22:
+        await Log("Mise à jour en cours...")
         configsError = []
         for config in configs.ConfigList:
             try:
@@ -317,16 +324,17 @@ async def Loop():
                 edtIMG.seek(0)
                 await DeleteOldEDT(config)
                 await client.get_channel(config.channel_id).send(file=discord.File(edtIMG, filename='EDT.png'), content=config.name + '\nDernière mise à jour: ' + now.strftime("%d/%m/%Y %H:%M:%S") + "\n\n" + GetNextMatiere(edt, config))
-                Log(config.name + " mis à jour.")
+                await Log('    ' + config.name + " mis à jour.")
             except Exception as e:
-                Log('Erreur : ' + str(e))
-                Log("Nouvelle tentative dans quelques secondes.")
+                await Log('    ' + 'Erreur : ' + str(e))
+                await Log('    ' + 'Ligne ' + str(sys.exc_info()[2].tb_lineno))
+                await Log('    ' + "Nouvelle tentative dans quelques secondes.")
                 configsError.append(config)
 
         if len(configsError) > 0:
             time.sleep(10)
             for config in configsError:
-                Log("Nouvelle tentative pour " + config.name + ".")
+                await Log('    ' + "Nouvelle tentative pour " + config.name + ".")
                 try:
                     UpdateTime()
                     edt = ParseEDT(DownloadEDT(config.edt_id))
@@ -334,19 +342,15 @@ async def Loop():
                     edtIMG.seek(0)
                     await DeleteOldEDT(config)
                     await client.get_channel(config.channel_id).send(file=discord.File(edtIMG, filename='EDT.png'), content=config.name + '\nDernière mise à jour: ' + now.strftime("%d/%m/%Y %H:%M:%S") + "\n\n" + GetNextMatiere(edt, config))
-                    Log(config.name + " mis à jour.")
+                    await Log(config.name + " mis à jour.")
                 except Exception as e:
-                    Log('Erreur : ' + str(e))
-                    Log("Abandon de la configuration. Nouvelle tentative lors de la prochaine mise à jour.")
+                    await Log('<@!420914917420433408>')
+                    await Log('    ' + 'Erreur : ' + str(e))
+                    await Log('    ' + 'Ligne ' + str(sys.exc_info()[2].tb_lineno))
+                    await Log('    ' + "Abandon de la configuration. Nouvelle tentative lors de la prochaine mise à jour.")
 
-        Log("Mise à jour terminée.")
+        await Log("Mise à jour terminée.\n")
 
 
 
 client.run(BOT_TOKEN)
-
-
-
-
-
-       
