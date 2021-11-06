@@ -1,4 +1,5 @@
 import urllib3
+import urllib.request
 import datetime
 import pytz
 import discord
@@ -15,7 +16,6 @@ AGALAN_USERNAME = os.environ['AGALAN_USERNAME']
 AGALAN_PASSWORD = os.environ['AGALAN_PASSWORD']
 BOT_TOKEN = os.environ['BOT_TOKEN']
 PROMOTION_IDs = {"1ATP1":"5957", "1ATP2":"5956", "1ATP3":"5941", "1ATP4":"5953"}
-
 
 #Global Vars
 now = None
@@ -122,7 +122,7 @@ def ParseEDT(edt):
                 year = int(data[0:4])
                 month = int(data[4:6])
                 day = int(data[6:8])
-                hour = int(data[9:11]) + 2 #Timezone
+                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Timezone
                 minute = int(data[11:13])
                 date = datetime.datetime(year, month, day, hour, minute, 0, 0)
                 VeventList[-1].Start = date
@@ -132,7 +132,7 @@ def ParseEDT(edt):
                 year = int(data[0:4])
                 month = int(data[4:6])
                 day = int(data[6:8])
-                hour = int(data[9:11]) + 2 #Timezone
+                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Timezone
                 minute = int(data[11:13])
                 date = datetime.datetime(year, month, day, hour, minute, 0, 0)
                 VeventList[-1].End = date
@@ -146,7 +146,8 @@ def ParseEDT(edt):
             if line.startswith("DESCRIPTION:"):
                 data = line.replace("DESCRIPTION:", "").split('\\n')
                 VeventList[-1].ID = data[2]
-                VeventList[-1].Professor = data[3]
+                if not(data[3].startswith('(Exporté')):
+                    VeventList[-1].Professor = data[3]
            
 
         
@@ -156,7 +157,9 @@ def GetNextMatiere(edt, config):
     weekday = now.weekday()
     minutetime = now.hour*60 + now.minute
     if weekday == 5:
-        return 'Bon week-end !'
+        #return 'Bon week-end !'
+        #return 'Bonnes vacances !'
+        return ''
     elif weekday == 6:
         weekday = -1
     
@@ -186,6 +189,22 @@ def GetNextMatiere(edt, config):
 
 def DrawEDT(edt, config):
     img = Image.new('RGB', (config.width, config.height), config.background_color)
+    if config.background_image != None:
+      backgroundimage = None
+      if config.background_image.startswith("http"):
+        http = urllib3.PoolManager()
+        resp = http.request('GET', config.background_image).data
+        backgroundimage = Image.open(io.BytesIO(resp))
+      else:
+        backgroundimage = Image.open(config.background_image)
+      widthratio = config.width /backgroundimage.size[0]
+      heightratio = config.height /backgroundimage.size[1]
+      bgwidth = int(backgroundimage.size[0] * max(widthratio,heightratio))
+      bgheight= int(backgroundimage.size[1] * max(widthratio,heightratio))
+      backgroundimage = backgroundimage.resize((bgwidth,bgheight))
+      img.paste(backgroundimage,(0,0))
+
+
     draw = ImageDraw.Draw(img)
 
     #Header Part 1
@@ -219,15 +238,15 @@ def DrawEDT(edt, config):
             text = "Vendredi " + str(date.day).zfill(2) + "/" + str(date.month).zfill(2) + "/" + str(date.year)
             matierelist = edt.Vendredi
 
-        draw.text((round(config.width/5)*day + round(config.width/10), round(config.height/72)), text, anchor='mt', fill=(0, 0, 0), font=ImageFont.truetype("arial.ttf", round(config.height/72*2)))
+        draw.text((round(config.width/5)*day + round(config.width/10), round(config.height/72)), text, anchor='mt', fill=config.headertext_color, font=ImageFont.truetype("arial.ttf", round(config.height/72*2)))
 
         #MatiereRectangle
         for matiere in matierelist:
             name = ""
-            if matiere.ID != None:
-                name = matiere.ID.split('_')[0][3:]
-            else:
+            if matiere.Name != None:
                 name = matiere.Name
+            else:
+                name = matiere.ID.split('_')[0][3:].strip()
 
             color = "#ADADAD"
             if name in config.Color_Dictionary:
@@ -251,7 +270,8 @@ def DrawEDT(edt, config):
 
 
             #ProfessorText
-            draw.text((round(config.width/5)*(day+1)-5, matiereBottomCoord - round(config.height/(60+5))), " ".join(matiere.Professor.split(' ')[0:-1]), anchor='rm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/60)))
+            if matiere.Professor != None:
+              draw.text((round(config.width/5)*(day+1)-5, matiereBottomCoord - round(config.height/(60+5))), " ".join(matiere.Professor.split(' ')[0:-1]), anchor='rm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/60)))
 
             #StartText
             draw.text((round(config.width/5)*day + round(config.width/10), matiereTopCoord + round(config.height/(44+5))), str(matiere.Start.hour).zfill(2) + ":" + str(matiere.Start.minute).zfill(2), anchor='mm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
@@ -262,9 +282,15 @@ def DrawEDT(edt, config):
             #MainText
             if name in config.Name_Dictionary:
                 name = config.Name_Dictionary[name]
-            type = matiere.ID.split('_')[3]
+                
+            title = ""
+            if  len(matiere.ID.split('_')) == 5:
+              type = matiere.ID.split('_')[3]
+              title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else type + " " + name
+            else:
+              title = name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else type + " " + name
 
-            title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else type + " " + name
+            
 
 
             if isCurrentMatiere:
