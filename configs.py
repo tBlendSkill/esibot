@@ -25,12 +25,12 @@ _1A_Name_Dictionary = {'MA121': 'Maths (MA121)',
                       'DS EE121 - L. Guilloton' : 'DS Électronique',
                       'AC101': 'Automatique (AC101)',
                       'CS101': 'Informatique (CS101)',
-                      'SP101': 'Sport (Badminton)',
+                      'SP101': 'Sport (Escalade)',
                       'LA101': 'Anglais (LA101)',
                       'IN101': 'Intégration (IN101)',
                       'PX111-Auto':'PX111 Automatique',
-                      'PX111-Elec': 'PX11 Électronique',
-                      'PX111-Info':'PX111 Électronique'}
+                      'PX111-Elec': 'PX111 Électronique',
+                      'PX111-Info':'PX111 Informatique'}
 
 _1A_Color_Dictionary = {'MA121': '#FFC551',
                         'DS MA121 - F. Tran-Minh': '#FFC551',
@@ -119,5 +119,5 @@ _1ATP4.timeline_color = "red"
 _1ATP4.Name_Dictionary = _1A_Name_Dictionary
 _1ATP4.Color_Dictionary = _1A_Color_Dictionary
 
-ConfigList = [_1ATP1TEST, _1ATP1, _1ATP2, _1ATP3, _1ATP4]
-#ConfigList = [_1ATP1TEST]
+#ConfigList = [_1ATP1TEST, _1ATP1, _1ATP2, _1ATP3, _1ATP4]
+ConfigList = [_1ATP1TEST]

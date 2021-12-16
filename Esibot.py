@@ -157,7 +157,7 @@ def GetNextMatiere(edt, config):
     weekday = now.weekday()
     minutetime = now.hour*60 + now.minute
     if weekday == 5:
-        #return 'Bon week-end !'
+        return 'Bon week-end !'
         #return 'Bonnes vacances !'
         return ''
     elif weekday == 6:
