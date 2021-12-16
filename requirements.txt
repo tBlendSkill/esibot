@@ -1,4 +1,3 @@
-git+https://github.com/tBlendSkill/esibot@rewrite
 aiohttp==3.7.4.post0
 multidict==5.2.0
 attrs==21.2.0
