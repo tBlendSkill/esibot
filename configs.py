@@ -1,3 +1,5 @@
+import os
+
 class config:
     edt_id = None
     channel_id = None
