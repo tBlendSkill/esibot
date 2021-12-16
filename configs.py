@@ -119,5 +119,9 @@ _1ATP4.timeline_color = "red"
 _1ATP4.Name_Dictionary = _1A_Name_Dictionary
 _1ATP4.Color_Dictionary = _1A_Color_Dictionary
 
-#ConfigList = [_1ATP1TEST, _1ATP1, _1ATP2, _1ATP3, _1ATP4]
-ConfigList = [_1ATP1TEST]
+ConfigList = []
+if os.environ['debug'] == 'true':
+    ConfigList = [_1ATP1TEST]
+else:
+    ConfigList = [_1ATP1TEST, _1ATP1, _1ATP2, _1ATP3, _1ATP4]
+
