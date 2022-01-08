@@ -25,7 +25,7 @@ client = discord.Client()
 def UpdateTime():
     global now
     now = datetime.datetime.now(pytz.timezone('Europe/Paris'))
-    #now = datetime.datetime(2021, 10, 5, 10, 40)
+    #now = now - datetime.timedelta(7)
 
 def GetFirstAndLastEDTDays():
     UpdateTime()
@@ -288,7 +288,7 @@ def DrawEDT(edt, config):
               type = matiere.ID.split('_')[3]
               title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else type + " " + name
             else:
-              title = name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else type + " " + name
+              title = name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else name
 
             
 
