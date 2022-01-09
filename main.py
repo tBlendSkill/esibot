@@ -159,7 +159,7 @@ def GetNextMatiere(edt, config):
     if weekday == 5:
         return 'Bon week-end !'
         #return 'Bonnes vacances !'
-        return ''
+
     elif weekday == 6:
         weekday = -1
     
@@ -173,12 +173,17 @@ def GetNextMatiere(edt, config):
 
     if smallestDelta[0] != None:
         name = ""
-        if smallestDelta[0].ID != None:
-            name = smallestDelta[0].ID.split('_')[0][3:]
-        else:
+        if smallestDelta[0].Name != None:
             name = smallestDelta[0].Name
+        else:
+            name = smallestDelta[0].ID.split('_')[0][3:].strip()
+
         if name in config.Name_Dictionary:
             name = config.Name_Dictionary[name]
+
+        if  len(smallestDelta[0].ID.split('_')) == 5:
+            type = smallestDelta[0].ID.split('_')[3]
+            name = type + " " + name
         
         if smallestDelta[0].Location != "":
             return "Prochain cours: " + name + " en salle " + smallestDelta[0].Location.replace(' (V)', '') + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
@@ -289,8 +294,6 @@ def DrawEDT(edt, config):
               title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else type + " " + name
             else:
               title = name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else name
-
-            
 
 
             if isCurrentMatiere:
