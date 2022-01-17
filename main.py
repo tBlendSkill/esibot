@@ -186,7 +186,7 @@ def GetNextMatiere(edt, config):
             name = type + " " + name
         
         if smallestDelta[0].Location != "":
-            return "Prochain cours: " + name + " en salle " + smallestDelta[0].Location.replace(' (V)', '') + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
+            return "Prochain cours: " + name + " en salle " + smallestDelta[0].Location.replace(' (V)', '').replace('\\,', ' / ') + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
         else:
             return "Prochain cours: " + name + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
     else:
@@ -301,9 +301,9 @@ def DrawEDT(edt, config):
             title = ""
             if  len(matiere.ID.split('_')) == 5:
               type = matiere.ID.split('_')[3]
-              title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else type + " " + name
+              title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '').replace('\\,', ' / ') if matiere.Location != '' else type + " " + name
             else:
-              title = name + "\n" + matiere.Location.replace(' (V)', '') if matiere.Location != '' else name
+              title = name + "\n" + matiere.Location.replace(' (V)', '').replace('\\,', ' / ') if matiere.Location != '' else name
 
 
             if isCurrentMatiere:
