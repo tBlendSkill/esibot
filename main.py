@@ -278,11 +278,21 @@ def DrawEDT(edt, config):
             if matiere.Professor != None:
               draw.text((round(config.width/5)*(day+1)-5, matiereBottomCoord - round(config.height/(60+5))), " ".join(matiere.Professor.split(' ')[0:-1]), anchor='rm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/60)))
 
+
+            hour_anchor = 'mm'
+            hour_x = round(config.width/5)*day + round(config.width/10)
+            hour_topbottom_margin = round(config.height/(44+5))
+
+            if abs(matiereTopCoord-matiereBottomCoord) < 125:
+                hour_anchor = 'lm'
+                hour_x = round(config.width/5)*day + 10
+                hour_topbottom_margin = round(config.height/(44+10))
+
             #StartText
-            draw.text((round(config.width/5)*day + round(config.width/10), matiereTopCoord + round(config.height/(44+5))), str(matiere.Start.hour).zfill(2) + ":" + str(matiere.Start.minute).zfill(2), anchor='mm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
+            draw.text((hour_x, matiereTopCoord + hour_topbottom_margin), str(matiere.Start.hour).zfill(2) + ":" + str(matiere.Start.minute).zfill(2), anchor=hour_anchor, fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
 
             #EndText
-            draw.text((round(config.width/5)*day + round(config.width/10), matiereBottomCoord - round(config.height/(44+5))), str(matiere.End.hour).zfill(2) + ":" + str(matiere.End.minute).zfill(2), anchor='mm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
+            draw.text((hour_x, matiereBottomCoord - hour_topbottom_margin), str(matiere.End.hour).zfill(2) + ":" + str(matiere.End.minute).zfill(2), anchor=hour_anchor, fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
 
             #MainText
             if name in config.Name_Dictionary:
