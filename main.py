@@ -357,6 +357,7 @@ async def Loop():
         Loop.restart()
     else:
         Loop.change_interval(minutes=45)
+        Loop.restart()
     
     min_hour = 8 if now.weekday() >= 5 else 7
     
