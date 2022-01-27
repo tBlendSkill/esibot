@@ -348,11 +348,19 @@ async def on_ready():
     Loop.start()
 
 
-@tasks.loop(minutes=30)
+@tasks.loop(minutes=45)
 async def Loop():
     UpdateTime()
-
-    if now.hour >= 7 and now.hour <= 22:
+    
+    if now.weekday() >= 5:
+        Loop.change_interval(hours=2)
+        Loop.restart()
+    else:
+        Loop.change_interval(minutes=45)
+    
+    min_hour = 8 if now.weekday() >= 5 else 7
+    
+    if now.hour >= min_hour and now.hour <= 22:
         await Log("Mise à jour en cours...")
         configsError = []
         for config in configs.ConfigList:
