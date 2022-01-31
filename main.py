@@ -344,21 +344,16 @@ async def Log(message):
 async def on_ready():
     global now
 
+    UpdateTime()
     await Log("Esibot est en ligne.")
+
     Loop.start()
 
 
 @tasks.loop(minutes=45)
 async def Loop():
     UpdateTime()
-    
-    if now.weekday() >= 5:
-        Loop.change_interval(hours=2)
-        Loop.restart()
-    else:
-        Loop.change_interval(minutes=45)
-        Loop.restart()
-    
+
     min_hour = 8 if now.weekday() >= 5 else 7
     
     if now.hour >= min_hour and now.hour <= 22:
@@ -399,6 +394,13 @@ async def Loop():
 
         await Log("Mise à jour terminée.\n")
 
-
+@Loop.before_loop
+async def UpdateLoopInterval():
+    if now.weekday() >= 5:
+        Loop.change_interval(hours=2)
+        await Log("Intervalle fixé à 2 heures.")
+    else:
+        Loop.change_interval(minutes=45)
+        await Log("Intervalle fixé à 45 minutes.")
 
 client.run(BOT_TOKEN)
