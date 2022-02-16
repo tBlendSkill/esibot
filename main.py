@@ -432,7 +432,7 @@ async def UpdateLoopInterval():
 
     elif now.hour < (7 if now.weekday() <= 4 else 8):
         start_date = now
-        start_date.replace(minute=0, second=0, microsecond=0)
+        start_date = start_date.replace(minute=0, second=0, microsecond=0)
         if start_date.weekday() <= 4:
             start_date = start_date.replace(hour=7)
         else:
