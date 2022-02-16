@@ -11,46 +11,53 @@ import time
 import os
 import sys
 
-#Constants
+#Mes identifiants Agalan (variables secrètes)
 AGALAN_USERNAME = os.environ['AGALAN_USERNAME']
 AGALAN_PASSWORD = os.environ['AGALAN_PASSWORD']
+
+#Token du bot
 BOT_TOKEN = os.environ['BOT_TOKEN']
+
+#Identifiants des TPs pour accéder à leur EDT
 PROMOTION_IDs = {"1ATP1":"5957", "1ATP2":"5956", "1ATP3":"5941", "1ATP4":"5953"}
 
-#Global Vars
+
 now = None
+
 client = discord.Client()
 
 
+#Met à jour la date à prendre en compte dans le programme
 def UpdateTime():
     global now
     now = datetime.datetime.now(pytz.timezone('Europe/Paris'))
     #now = now - datetime.timedelta(7)
 
-def GetFirstAndLastEDTDays():
-    UpdateTime()
 
+#Retourne la date du Lundi et du Vendredi de la semaine à afficher
+def GetFirstAndLastEDTDays():
     first = None
     last = None
 
-    if now.weekday() <= 4:
+    if now.weekday() <= 4: #Si on est en semaine, prendre le Lundi et le Vendredi de la semaine actuelle
         first = now - datetime.timedelta(now.weekday())
         last = now + datetime.timedelta(4-now.weekday())
-    else:
+    else: #Si on est en week-end, prendre le Lundi et le Vendredi de la semaine suivante
         first = now + datetime.timedelta(7-now.weekday())
         last = now + datetime.timedelta((7-now.weekday())+4)
 
     return (first, last)
 
-def GetSchoolYears():
-    UpdateTime()
 
-    first = now.year if now.month > 8 else now.year - 1
+#Retourne les deux années correspondants à l'année scolaire en cours
+def GetSchoolYears():
+    first = now.year if now.month >= 7 else now.year - 1 #Dépend de si on est avant ou après juillet
     second = first+1
 
     return(first, second)
 
 
+#Télécharge l'emploi du temps correspondant à l'id fournit
 def DownloadEDT(id):
     firstlastdays = GetFirstAndLastEDTDays()
 
@@ -62,6 +69,7 @@ def DownloadEDT(id):
     result = r.data.decode('utf-8')
     return result
 
+#Classe permettant de représenter les informations d'une matière
 class Event:
     def __init__(self):
         self.Start = None
@@ -71,6 +79,7 @@ class Event:
         self.ID = None
         self.Professor = None
 
+#Classe contenant la liste de chaque matière (classe Event) pour chaque jour, et les heures minimales et maximales atteintent dans la semaine
 class EDT:
     def __init__(self):
         self.Lundi = []
@@ -82,6 +91,8 @@ class EDT:
         self.Min = 1440
         self.Max = 0
         
+
+#Crée un EDT à partir des informations téléchargées
 def ParseEDT(edt):
     index = 0
     lines = edt.splitlines()
@@ -90,14 +101,15 @@ def ParseEDT(edt):
     edt = EDT()
 
     IsInVevent = False
-    for line in lines:
-        if line.startswith("BEGIN:VEVENT") and IsInVevent == False:
+    for line in lines: #Pour chaque ligne du fichier
+        if line.startswith("BEGIN:VEVENT") and IsInVevent == False: #Si c'est un début d'évènement et qu'on n'est pas déjà dans un évènement
             IsInVevent = True
-            VeventList.append(Event())
+            VeventList.append(Event()) #Ajouter un nouvel évènement dans la liste
 
-        elif line.startswith("END:VEVENT") and IsInVevent == True:
+        elif line.startswith("END:VEVENT") and IsInVevent == True: #Si c'est la fin d'un évènement et qu'on était dans un évènement
             IsInVevent = False
             
+            #Ajoute le dernier évènement dans la liste de l'EDT correspondant au jour de l'évènement
             weekday = VeventList[-1].Start.weekday()
             if weekday == 0:
                 edt.Lundi.append(VeventList[-1])
@@ -110,52 +122,53 @@ def ParseEDT(edt):
             elif weekday == 4:
                 edt.Vendredi.append(VeventList[-1])
 
+            #Modifie si besoin les heures minimales et maximales de l'EDT
             startinminutes = VeventList[-1].Start.hour * 60 + VeventList[-1].Start.minute
             endinminutes = VeventList[-1].End.hour * 60 + VeventList[-1].End.minute
-
             edt.Min = min(startinminutes, edt.Min)
             edt.Max = max(endinminutes, edt.Max)
 
-        elif IsInVevent:
-            if line.startswith("DTSTART:"):
+        elif IsInVevent: #Si on est dans un évènement
+            if line.startswith("DTSTART:"): #Si la ligne indique l'heure de début de l'évènement
                 data = line.replace("DTSTART:", "")
                 year = int(data[0:4])
                 month = int(data[4:6])
                 day = int(data[6:8])
-                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Timezone
+                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Prend en compte le décalage horaire
                 minute = int(data[11:13])
                 date = datetime.datetime(year, month, day, hour, minute, 0, 0)
-                VeventList[-1].Start = date
+                VeventList[-1].Start = date #Modifie la date de début du dernier évènement ajouté (donc celui qui est en train d'être lu)
 
-            if line.startswith("DTEND:"):
+            if line.startswith("DTEND:"): #Si la ligne indique l'heure de fin de l'évènement
                 data = line.replace("DTEND:", "")
                 year = int(data[0:4])
                 month = int(data[4:6])
                 day = int(data[6:8])
-                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Timezone
+                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Prend en compte le décalage horaire
                 minute = int(data[11:13])
                 date = datetime.datetime(year, month, day, hour, minute, 0, 0)
                 VeventList[-1].End = date
 
-            if line.startswith("SUMMARY:"):
+            if line.startswith("SUMMARY:"): #Si la ligne indique le nom de l'évènement (nom de la matière)
                 VeventList[-1].Name = line.replace("SUMMARY:", "")
 
-            if line.startswith("LOCATION:"):
+            if line.startswith("LOCATION:"): #Si la ligne indique le lieu de l'évènement (salle)
                 VeventList[-1].Location = line.replace("LOCATION:", "")
 
-            if line.startswith("DESCRIPTION:"):
+            if line.startswith("DESCRIPTION:"): #La description contient (entre autre) l'ID de la matière et le nom du professeur
                 data = line.replace("DESCRIPTION:", "").split('\\n')
                 VeventList[-1].ID = data[2]
                 if not(data[3].startswith('(Exporté')):
                     VeventList[-1].Professor = data[3]
-           
-
         
     return edt
         
+#Obtient la prochaine matière et retourne le texte "Prochain cours : ..." à envoyer sur Discord
 def GetNextMatiere(edt, config):
     weekday = now.weekday()
     minutetime = now.hour*60 + now.minute
+
+
     if weekday == 5:
         return 'Bon week-end !'
         #return 'Bonnes vacances !'
@@ -163,12 +176,13 @@ def GetNextMatiere(edt, config):
     elif weekday == 6:
         weekday = -1
     
-    smallestDelta = (None, 15000)
-    for matiere in edt.Lundi + edt.Mardi + edt.Mercredi + edt.Jeudi + edt.Vendredi:
-        minutestart = matiere.Start.hour * 60 + matiere.Start.minute
-        delta = minutestart - minutetime + 24*60*(matiere.Start.weekday() - weekday)
 
-        if delta >= 0 and delta < smallestDelta[1]:
+    smallestDelta = (None, 15000)
+    for matiere in edt.Lundi + edt.Mardi + edt.Mercredi + edt.Jeudi + edt.Vendredi: #Pour chaque matière dans l'EDT
+        minutestart = matiere.Start.hour * 60 + matiere.Start.minute
+        delta = minutestart - minutetime + 24*60*(matiere.Start.weekday() - weekday) #Calcule le temps entre maintenant et le début de la matière
+
+        if delta >= 0 and delta < smallestDelta[1]: #Si le temps est inférieur au temps minimal déjà calculé et que la matière n'a pas encore commencé
             smallestDelta = (matiere, delta)
 
     if smallestDelta[0] != None:
@@ -338,7 +352,7 @@ async def Log(message, send_to_discord=True):
     UpdateTime()
     print('{' + str(now.time()) + '}   ' + message)
     if send_to_discord:
-        await client.get_channel(895410453335928863).send(content=message)
+        await client.get_channel(895410453335928863).send(content= '> ' + message)
 
 
 @client.event
