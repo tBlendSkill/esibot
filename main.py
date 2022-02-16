@@ -440,7 +440,7 @@ async def UpdateLoopInterval():
 
         next_loop_in_seconds = (start_date - now).seconds
         Loop.change_interval(seconds=next_loop_in_seconds)
-        await Log(f'Mise à jour suivante dans : {str(tomorrow_date - now)}.\n')
+        await Log(f'Mise à jour suivante dans : {str(start_date - now)}.\n')
 
     else:
         if now.weekday() <= 4:
