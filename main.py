@@ -364,39 +364,21 @@ async def on_ready():
 
     Loop.start()
 
-
+interval_update = False
 @tasks.loop(minutes=45)
 async def Loop():
-    await UpdateLoopInterval()
+    global interval_update
 
-    min_hour = 8 if now.weekday() >= 5 else 7
+    if not interval_update:
+        await UpdateLoopInterval()
+
+        min_hour = 8 if now.weekday() >= 5 else 7
     
-    if min_hour <= now.hour <= 22:
-        await Log("Mise à jour en cours...")
-        configsError = []
-        for config in configs.ConfigList:
-            await Log("• " + config.name)
-            try:
-                UpdateTime()
-                await Log("    Téléchargement et analyse de l'EDT...")
-                edt = ParseEDT(DownloadEDT(config.edt_id))
-                await Log("    Création de l'image...")
-                edtIMG = DrawEDT(edt, config)
-                edtIMG.seek(0)
-                await Log("    Envoi de l'EDT sur Discord...")
-                await DeleteOldEDT(config)
-                await client.get_channel(config.channel_id).send(file=discord.File(edtIMG, filename='EDT.png'), content=config.name + '\nDernière mise à jour: ' + now.strftime("%d/%m/%Y %H:%M:%S") + "\n\n" + GetNextMatiere(edt, config))
-                await Log('    ' + config.name + " a été mis à jour.")
-            except Exception as e:
-                await Log('    Erreur : ' + str(e))
-                await Log('    Ligne ' + str(sys.exc_info()[2].tb_lineno))
-                await Log("    Nouvelle tentative dans quelques secondes.")
-                configsError.append(config)
-
-        if len(configsError) > 0:
-            time.sleep(10)
-            for config in configsError:
-                await Log("• Nouvelle tentative pour " + config.name)
+        if min_hour <= now.hour <= 22:
+            await Log("Mise à jour en cours...")
+            configsError = []
+            for config in configs.ConfigList:
+                await Log("• " + config.name)
                 try:
                     UpdateTime()
                     await Log("    Téléchargement et analyse de l'EDT...")
@@ -409,12 +391,38 @@ async def Loop():
                     await client.get_channel(config.channel_id).send(file=discord.File(edtIMG, filename='EDT.png'), content=config.name + '\nDernière mise à jour: ' + now.strftime("%d/%m/%Y %H:%M:%S") + "\n\n" + GetNextMatiere(edt, config))
                     await Log('    ' + config.name + " a été mis à jour.")
                 except Exception as e:
-                    await Log('<@!420914917420433408>')
                     await Log('    Erreur : ' + str(e))
                     await Log('    Ligne ' + str(sys.exc_info()[2].tb_lineno))
-                    await Log("    Abandon de la configuration. Nouvelle tentative lors de la prochaine mise à jour.")
+                    await Log("    Nouvelle tentative dans quelques secondes.")
+                    configsError.append(config)
 
-        await Log("Mise à jour terminée.\n")
+            if len(configsError) > 0:
+                time.sleep(10)
+                for config in configsError:
+                    await Log("• Nouvelle tentative pour " + config.name)
+                    try:
+                        UpdateTime()
+                        await Log("    Téléchargement et analyse de l'EDT...")
+                        edt = ParseEDT(DownloadEDT(config.edt_id))
+                        await Log("    Création de l'image...")
+                        edtIMG = DrawEDT(edt, config)
+                        edtIMG.seek(0)
+                        await Log("    Envoi de l'EDT sur Discord...")
+                        await DeleteOldEDT(config)
+                        await client.get_channel(config.channel_id).send(file=discord.File(edtIMG, filename='EDT.png'), content=config.name + '\nDernière mise à jour: ' + now.strftime("%d/%m/%Y %H:%M:%S") + "\n\n" + GetNextMatiere(edt, config))
+                        await Log('    ' + config.name + " a été mis à jour.")
+                    except Exception as e:
+                        await Log('<@!420914917420433408>')
+                        await Log('    Erreur : ' + str(e))
+                        await Log('    Ligne ' + str(sys.exc_info()[2].tb_lineno))
+                        await Log("    Abandon de la configuration. Nouvelle tentative lors de la prochaine mise à jour.")
+
+            await Log("Mise à jour terminée.\n")
+
+        interval_update = True
+        Loop.restart()
+    else:
+        interval_update = False
 
 async def UpdateLoopInterval():
     UpdateTime()
