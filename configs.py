@@ -44,7 +44,7 @@ _1A_Name_Dictionary = {'MA121': 'Maths (MA121)',
                       'PX112-Elec': 'PX112 Électronique',
                       'PX111-Info':'PX111 Informatique',
                       'PX112-Info': 'PX112 Informatique',
-                      'PX112-CE': 'PX112 Électronique numérique',}
+                      'PX112-CE': 'PX112\nÉlectronique numérique',}
 
 _1A_Color_Dictionary = {'MA121': '#FFC551',
                         'DS MA121 - F. Tran-Minh': '#FFC551',
@@ -68,7 +68,10 @@ _1A_Color_Dictionary = {'MA121': '#FFC551',
                         'CE102': '#E9FF89',
                         'PX111-Auto':'#A8FF8C',
                         'PX111-Elec':'#FFFC6D',
-                        'PX111-Info':'#75D7FF'}
+                        'PX112-Elec':'#FFFC6D',
+                        'PX111-Info':'#75D7FF',
+                        'PX112-Info':'#75D7FF',
+                        'PX112-CE':'#E9FF89'}
 
 
 _1ATP1TEST = config()
