@@ -15,58 +15,68 @@ import sys
 AGALAN_USERNAME = os.environ['AGALAN_USERNAME']
 AGALAN_PASSWORD = os.environ['AGALAN_PASSWORD']
 
-#Token du bot
+#Token du bot pour se connecter à Discord (variable secrète)
 BOT_TOKEN = os.environ['BOT_TOKEN']
 
-#Identifiants des TPs pour accéder à leur EDT
-PROMOTION_IDs = {"1ATP1":"5957", "1ATP2":"5956", "1ATP3":"5941", "1ATP4":"5953"}
 
-
+#L'heure ne doit pas changer entre le début et la fin d'une mise à jour, donc elle est stockée temporairement dans la variable now
 now = None
 
+#Le client permet au bot d'intéragir avec Discord
 client = discord.Client()
 
 
-#Met à jour la date à prendre en compte dans le programme
-def UpdateTime():
+#Sauvegarde la date et l'heure actuelle dans 'now'
+def update_time():
     global now
     now = datetime.datetime.now(pytz.timezone('Europe/Paris'))
+
+    #Décommenter la ligne ci-dessous pour retarder 'now' de 7 jours. Pour debugger.
     #now = now - datetime.timedelta(7)
 
 
-#Retourne la date du Lundi et du Vendredi de la semaine à afficher
-def GetFirstAndLastEDTDays():
-    first = None
-    last = None
+#Retourne la date du lundi et du vendredi de la semaine à afficher
+def get_monday_and_friday_dates():
+    monday = now - datetime.timedelta(now.weekday())
+    friday = monday + datetime.timedelta(4)
 
-    if now.weekday() <= 4: #Si on est en semaine, prendre le Lundi et le Vendredi de la semaine actuelle
-        first = now - datetime.timedelta(now.weekday())
-        last = now + datetime.timedelta(4-now.weekday())
-    else: #Si on est en week-end, prendre le Lundi et le Vendredi de la semaine suivante
-        first = now + datetime.timedelta(7-now.weekday())
-        last = now + datetime.timedelta((7-now.weekday())+4)
+    if now.weekday() > 4: #Si c'est le week-end, prendre les dates de la semaine suivante
+        monday += datetime.timedelta(7)
+        friday += datetime.timedelta(7)
 
-    return (first, last)
+    return (monday, friday)
 
 
-#Retourne les deux années correspondants à l'année scolaire en cours
-def GetSchoolYears():
-    first = now.year if now.month >= 7 else now.year - 1 #Dépend de si on est avant ou après juillet
+#Retourne les deux années de l'année scolaire en cours
+def get_school_year():
+    first = now.year
+    if now.month < 7: #Si on est avant juillet, on est dans la 2ème partie de l'année scolaire donc il faut enlever 1 année.
+        first -= 1
+
     second = first+1
 
     return(first, second)
 
 
 #Télécharge l'emploi du temps correspondant à l'id fournit
-def DownloadEDT(id):
-    firstlastdays = GetFirstAndLastEDTDays()
+def download_edt(id):
+    monday = get_monday_and_friday_dates()[0]
+    friday = get_monday_and_friday_dates()[1]
 
     http = urllib3.PoolManager()
     headers = urllib3.util.make_headers(basic_auth=AGALAN_USERNAME + ":" + AGALAN_PASSWORD)
-    url = "https://edt.grenoble-inp.fr/directCal/" + str(GetSchoolYears()[0]) + "-" + str(GetSchoolYears()[1]) + "/etudiant/esisar?resources=" + str(id) + "&startDay=" + str(firstlastdays[0].day).zfill(2) + "&startMonth=" + str(firstlastdays[0].month).zfill(2) + "&startYear=" + str(firstlastdays[0].year)  + "&endDay=" + str(firstlastdays[1].day).zfill(2)  + "&endMonth=" + str(firstlastdays[1].month).zfill(2)  + "&endYear=" + str(firstlastdays[1].year)
+
+    base_url = "https://edt.grenoble-inp.fr/directCal/" + str(get_school_year()[0]) + "-" + str(get_school_year()[1]) + "/etudiant/esisar?"
+    parameters = {'resources':str(id), 'startDay':str(monday.day).zfill(2), 'startMonth':str(monday.month).zfill(2), 'startYear':str(monday.year), 'endDay':str(friday.day).zfill(2), 'endMonth':str(friday.month).zfill(2), 'endYear':str(friday.year)}
+
+    for param in parameters.keys():
+        base_url += param + '=' + parameters[param] + '&'
     
-    r = http.request('GET',url,headers=headers)
+    url = base_url[:-1] #Supprimer le dernier &
+
+    r = http.request('GET', url, headers=headers)
     result = r.data.decode('utf-8')
+
     return result
 
 #Classe permettant de représenter les informations d'une matière
@@ -92,264 +102,283 @@ class EDT:
         self.Max = 0
         
 
-#Crée un EDT à partir des informations téléchargées
-def ParseEDT(edt):
-    index = 0
-    lines = edt.splitlines()
-
-    VeventList = []
+#Crée l'EDT à partir des informations téléchargées
+def ParseEDT(downloaded_edt):
     edt = EDT()
-
-    IsInVevent = False
+    index = 0
+    lines = downloaded_edt.splitlines() #Sépare chaque ligne du fichier
+    vevent_list = [] #Liste des évènements (rempli au fur et à mesure de la lecture des données)
+    
+    is_in_vevent = False
     for line in lines: #Pour chaque ligne du fichier
-        if line.startswith("BEGIN:VEVENT") and IsInVevent == False: #Si c'est un début d'évènement et qu'on n'est pas déjà dans un évènement
-            IsInVevent = True
-            VeventList.append(Event()) #Ajouter un nouvel évènement dans la liste
+        if line.startswith("BEGIN:VEVENT") and is_in_vevent == False: #Si c'est un début d'évènement et qu'on n'est pas déjà dans un évènement
+            is_in_vevent = True
+            vevent_list.append(Event()) #Ajouter un nouvel évènement vide dans la liste
 
-        elif line.startswith("END:VEVENT") and IsInVevent == True: #Si c'est la fin d'un évènement et qu'on était dans un évènement
-            IsInVevent = False
-            
-            #Ajoute le dernier évènement dans la liste de l'EDT correspondant au jour de l'évènement
-            weekday = VeventList[-1].Start.weekday()
-            if weekday == 0:
-                edt.Lundi.append(VeventList[-1])
-            elif weekday == 1:
-                edt.Mardi.append(VeventList[-1])
-            elif weekday == 2:
-                edt.Mercredi.append(VeventList[-1])
-            elif weekday == 3:
-                edt.Jeudi.append(VeventList[-1])
-            elif weekday == 4:
-                edt.Vendredi.append(VeventList[-1])
-
-            #Modifie si besoin les heures minimales et maximales de l'EDT
-            startinminutes = VeventList[-1].Start.hour * 60 + VeventList[-1].Start.minute
-            endinminutes = VeventList[-1].End.hour * 60 + VeventList[-1].End.minute
-            edt.Min = min(startinminutes, edt.Min)
-            edt.Max = max(endinminutes, edt.Max)
-
-        elif IsInVevent: #Si on est dans un évènement
+        elif is_in_vevent: #Si on est dans un événement
             if line.startswith("DTSTART:"): #Si la ligne indique l'heure de début de l'évènement
+                #Format des données : DTSTART:yyyymmddThhmm
                 data = line.replace("DTSTART:", "")
                 year = int(data[0:4])
                 month = int(data[4:6])
                 day = int(data[6:8])
-                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Prend en compte le décalage horaire
+                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/3600) #Prend en compte le décalage horaire
                 minute = int(data[11:13])
                 date = datetime.datetime(year, month, day, hour, minute, 0, 0)
-                VeventList[-1].Start = date #Modifie la date de début du dernier évènement ajouté (donc celui qui est en train d'être lu)
+                vevent_list[-1].Start = date #Modifie la date de début du dernier évènement ajouté (donc celui qui est en train d'être lu)
 
-            if line.startswith("DTEND:"): #Si la ligne indique l'heure de fin de l'évènement
+            elif line.startswith("DTEND:"): #Si la ligne indique l'heure de fin de l'évènement
+                #Format des données : DTEND:yyyymmddThhmm
                 data = line.replace("DTEND:", "")
                 year = int(data[0:4])
                 month = int(data[4:6])
                 day = int(data[6:8])
-                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/60/60) #Prend en compte le décalage horaire
+                hour = int(data[9:11]) + int(now.utcoffset().total_seconds()/3600)
                 minute = int(data[11:13])
                 date = datetime.datetime(year, month, day, hour, minute, 0, 0)
-                VeventList[-1].End = date
+                vevent_list[-1].End = date
 
-            if line.startswith("SUMMARY:"): #Si la ligne indique le nom de l'évènement (nom de la matière)
-                VeventList[-1].Name = line.replace("SUMMARY:", "")
+            elif line.startswith("SUMMARY:"): #Si la ligne indique le nom de l'évènement (nom de la matière)
+                vevent_list[-1].Name = line.replace("SUMMARY:", "")
 
-            if line.startswith("LOCATION:"): #Si la ligne indique le lieu de l'évènement (salle)
-                VeventList[-1].Location = line.replace("LOCATION:", "")
+            elif line.startswith("LOCATION:"): #Si la ligne indique le lieu de l'évènement (salle)
+                vevent_list[-1].Location = line.replace("LOCATION:", "")
 
-            if line.startswith("DESCRIPTION:"): #La description contient (entre autre) l'ID de la matière et le nom du professeur
-                data = line.replace("DESCRIPTION:", "").split('\\n')
-                VeventList[-1].ID = data[2]
-                if not(data[3].startswith('(Exporté')):
-                    VeventList[-1].Professor = data[3]
-        
+            elif line.startswith("DESCRIPTION:"): #La description contient (entre autre) l'ID de la matière et le nom du professeur
+                #Exemple de description : \n\n1AMMA122_2021_S2_TD_G1\nTRAN MINH Frederic\n(Exporté le:0
+                data = line.replace("DESCRIPTION:", "").split(r'\n') #Enlève DESCRIPTION: et sépare à chaque \n
+                vevent_list[-1].ID = data[2]
+                if not(data[3].startswith('(Exporté')): #Certaines matières ne donnent pas le nom du professeur
+                    vevent_list[-1].Professor = data[3]
+
+            elif line.startswith("END:VEVENT"): #Si la ligne indique la fin d'un évènement
+                is_in_vevent = False
+            
+                #Ajoute à l'EDT la matière qui vient d'être lue (donc en dernière position de vevent_list)
+                matiere = vevent_list[-1]
+                weekday = matiere.Start.weekday()
+                if weekday == 0:
+                    edt.Lundi.append(matiere)
+                elif weekday == 1:
+                    edt.Mardi.append(matiere)
+                elif weekday == 2:
+                    edt.Mercredi.append(matiere)
+                elif weekday == 3:
+                    edt.Jeudi.append(matiere)
+                elif weekday == 4:
+                    edt.Vendredi.append(matiere)
+
+                #Modifie si besoin les heures minimales et maximales de l'EDT
+                start_in_minutes = matiere.Start.hour * 60 + matiere.Start.minute #Heure du début de la matière en minutes
+                end_in_minutes = matiere.End.hour * 60 + matiere.End.minute #Heure de la fin de la matière en minutes
+                edt.Min = min(start_in_minutes, edt.Min)
+                edt.Max = max(end_in_minutes, edt.Max)
+
     return edt
         
 #Obtient la prochaine matière et retourne le texte "Prochain cours : ..." à envoyer sur Discord
 def GetNextMatiere(edt, config):
     weekday = now.weekday()
-    minutetime = now.hour*60 + now.minute
+    current_time_in_minutes = now.hour*60 + now.minute
 
-
+    #Pour que les calculs fonctionnent le week-end, il faut modifier weekday
     if weekday == 5:
-        return 'Bon week-end !'
-        #return 'Bonnes vacances !'
-
+        weekday = -2
     elif weekday == 6:
         weekday = -1
-    
 
-    smallestDelta = (None, 15000)
-    for matiere in edt.Lundi + edt.Mardi + edt.Mercredi + edt.Jeudi + edt.Vendredi: #Pour chaque matière dans l'EDT
-        minutestart = matiere.Start.hour * 60 + matiere.Start.minute
-        delta = minutestart - minutetime + 24*60*(matiere.Start.weekday() - weekday) #Calcule le temps entre maintenant et le début de la matière
+    smallestDelta = (None, 15000) #Contient la matière la plus proche et le temps en minute entre maintenant et le début de cette matière.
+    for matiere in edt.Lundi + edt.Mardi + edt.Mercredi + edt.Jeudi + edt.Vendredi:
+        start_in_minutes = matiere.Start.hour * 60 + matiere.Start.minute
+        delta = start_in_minutes - current_time_in_minutes + 24*60*(matiere.Start.weekday() - weekday) #Calcule le temps entre maintenant et le début de la matière
 
-        if delta >= 0 and delta < smallestDelta[1]: #Si le temps est inférieur au temps minimal déjà calculé et que la matière n'a pas encore commencé
+        if 0 <= delta < smallestDelta[1]: #Si delta est positif (la matière n'a pas encore commencé) et qu'il est inférieur au delta minimal
             smallestDelta = (matiere, delta)
 
-    if smallestDelta[0] != None:
+    if smallestDelta[0] != None: #smallestDelta[0] = None si il n'y a aucun cours de la semaine (vacances)
         name = ""
-        if smallestDelta[0].Name != None:
+        if smallestDelta[0].Name != None: #Si la matière a un nom (certaines exceptionnelles n'en ont pas)
             name = smallestDelta[0].Name
-        else:
+        else: #Si elle n'a pas de nom, on peut le retrouver dans l'identifiant de la matière
             name = smallestDelta[0].ID.split('_')[0][3:].strip()
 
-        if name in config.Name_Dictionary:
-            name = config.Name_Dictionary[name]
+        if name in config.Name_Dictionary: #Si la matière a un nom de remplacement
+            name = config.Name_Dictionary[name] #Remplacer le nom
 
-        if  len(smallestDelta[0].ID.split('_')) == 5:
+        if  len(smallestDelta[0].ID.split('_')) == 5: #Si le format de l'id est normal (du type 1AMMA122_2021_S2_TD_G1)
             type = smallestDelta[0].ID.split('_')[3]
             name = type + " " + name
         
-        if smallestDelta[0].Location != "":
+        if smallestDelta[0].Location != "": #Si la salle est indiquée
             return "Prochain cours: " + name + " en salle " + smallestDelta[0].Location.replace(' (V)', '').replace('\\,', ' / ') + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
-        else:
+        else: #Sinon (comme en sport)
             return "Prochain cours: " + name + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
     else:
-      return ""
+      return 'Bonnes vacances !'
 
+#Crée l'image de l'emploi du temps
 def DrawEDT(edt, config):
     img = Image.new('RGB', (config.width, config.height), config.background_color)
-    if config.background_image != None:
+
+    if config.background_image != None: #Si il y a une image à afficher en arrière-plan
       backgroundimage = None
-      if config.background_image.startswith("http"):
+      if config.background_image.startswith("http"): #Si c'est une URL, récupérer l'image sur Internet
         http = urllib3.PoolManager()
         resp = http.request('GET', config.background_image).data
         backgroundimage = Image.open(io.BytesIO(resp))
-      else:
+      else: #Sinon elle est juste stockée dans un fichier
         backgroundimage = Image.open(config.background_image)
-      widthratio = config.width /backgroundimage.size[0]
-      heightratio = config.height /backgroundimage.size[1]
+
+      #Calcule les proportions de l'image pour qu'elle remplisse tout l'EDT sans être déformée
+      widthratio = config.width / backgroundimage.size[0]
+      heightratio = config.height / backgroundimage.size[1]
       bgwidth = int(backgroundimage.size[0] * max(widthratio,heightratio))
       bgheight= int(backgroundimage.size[1] * max(widthratio,heightratio))
       backgroundimage = backgroundimage.resize((bgwidth,bgheight))
       img.paste(backgroundimage,(0,0))
 
 
+
     draw = ImageDraw.Draw(img)
 
-    #Header Part 1
-    headerHeight =  round(config.height/21.5)
-    draw.rectangle((0, 0, config.width, headerHeight), fill=config.header_color)
+    header_height =  round(config.height/21.5) #Hauteur de l'entête de l'EDT (qui contient les jours de la semaine)
+    draw.rectangle((0, 0, config.width, header_height), fill=config.header_color)
 
-    availableHeight = config.height - headerHeight
-    maxMinutes = edt.Max - edt.Min
-    HeightMinutesRatio = availableHeight / maxMinutes
+    body_height = config.height - header_height
+    max_time_in_minutes = edt.Max - edt.Min
+    minutes_to_pixels_ratio = body_height / max_time_in_minutes
 
-    #Day Title
-    mondaydate = GetFirstAndLastEDTDays()[0]
-    TimeLineDrawed = False
+    #Affichage des jours
+    timeline_drawed = False
     for day in range(5):
-        date = mondaydate + datetime.timedelta(day)
+        date = get_monday_and_friday_dates()[0] + datetime.timedelta(day)
+        date_string = str(date.day).zfill(2) + "/" + str(date.month).zfill(2) + "/" + str(date.year)
+
         text = ""
-        matierelist = []
+        matiere_list = []
+
         if day == 0:
-            text = "Lundi " + str(date.day).zfill(2) + "/" + str(date.month).zfill(2) + "/" + str(date.year)
-            matierelist = edt.Lundi
+            text = "Lundi "
+            matiere_list = edt.Lundi
         elif day == 1:
-            text = "Mardi " + str(date.day).zfill(2) + "/" + str(date.month).zfill(2) + "/" + str(date.year)
-            matierelist = edt.Mardi
+            text = "Mardi "
+            matiere_list = edt.Mardi
         elif day == 2:
-            text = "Mercredi " + str(date.day).zfill(2) + "/" + str(date.month).zfill(2) + "/" + str(date.year)
-            matierelist = edt.Mercredi
+            text = "Mercredi "
+            matiere_list = edt.Mercredi
         elif day == 3:
-            text = "Jeudi " + str(date.day).zfill(2) + "/" + str(date.month).zfill(2) + "/" + str(date.year)
-            matierelist = edt.Jeudi
+            text = "Jeudi "
+            matiere_list = edt.Jeudi
         elif day == 4:
-            text = "Vendredi " + str(date.day).zfill(2) + "/" + str(date.month).zfill(2) + "/" + str(date.year)
-            matierelist = edt.Vendredi
+            text = "Vendredi "
+            matiere_list = edt.Vendredi
+
+        text += date_string
 
         draw.text((round(config.width/5)*day + round(config.width/10), round(config.height/72)), text, anchor='mt', fill=config.headertext_color, font=ImageFont.truetype("arial.ttf", round(config.height/72*2)))
 
-        #MatiereRectangle
-        for matiere in matierelist:
+        #Affichage des matières
+        for matiere in matiere_list:
             name = ""
             if matiere.Name != None:
                 name = matiere.Name
-            else:
+            else: #Les matières exceptionnelles peuvent ne pas avoir de nom, dans ce cas on peut le retrouver dans l'ID de la matière
                 name = matiere.ID.split('_')[0][3:].strip()
 
             color = "#ADADAD"
-            if name in config.Color_Dictionary:
+            if name in config.Color_Dictionary: #Si la matière a une couleur spécifique dans la configuration, l'appliquer
                 color = config.Color_Dictionary[name]
 
-            matiereTopCoord = (headerHeight + (matiere.Start.hour*60 + matiere.Start.minute - edt.Min)*HeightMinutesRatio)
-            matiereBottomCoord = (headerHeight + (matiere.End.hour*60 + matiere.End.minute - edt.Min)*HeightMinutesRatio)
-            draw.rectangle(((config.width/5)*day, matiereTopCoord, (config.width/5)*(day+1), matiereBottomCoord), fill=color)
-            draw.line(((config.width/5)*day, matiereTopCoord, (config.width/5)*(day+1), matiereTopCoord), fill=(0,0,0), width=3)
-            draw.line(((config.width/5)*day, matiereBottomCoord, (config.width/5)*(day+1), matiereBottomCoord), fill=(0,0,0), width=3)
+            #Dessin du rectangle de la matière
+            top_coords = (header_height + (matiere.Start.hour*60 + matiere.Start.minute - edt.Min) * minutes_to_pixels_ratio)
+            bottom_coords = (header_height + (matiere.End.hour*60 + matiere.End.minute - edt.Min) * minutes_to_pixels_ratio)
+            draw.rectangle(((config.width/5)*day, top_coords, (config.width/5)*(day+1), bottom_coords), fill=color)
+            draw.line(((config.width/5)*day, top_coords, (config.width/5)*(day+1), top_coords), fill=(0,0,0), width=3)
+            draw.line(((config.width/5)*day, bottom_coords, (config.width/5)*(day+1), bottom_coords), fill=(0,0,0), width=3)
 
             #TimeLine
-            isCurrentMatiere = False
+            is_matiere_now = False
             if now.weekday() == day:
-                currentMinuteTime = now.hour*60 + now.minute
-                if (matiere.Start.hour*60 + matiere.Start.minute) < currentMinuteTime and (matiere.End.hour*60 + matiere.End.minute) > currentMinuteTime:
-                    isCurrentMatiere = True
-                    LineCoord = headerHeight + (currentMinuteTime - edt.Min)*HeightMinutesRatio
-                    draw.line(((config.width/5)*day, LineCoord, (config.width/5)*(day+1), LineCoord), fill=config.timeline_color, width=3)
-                    TimeLineDrawed = True
+                current_minute_time = now.hour*60 + now.minute
+                if (matiere.Start.hour*60 + matiere.Start.minute) < current_minute_time < (matiere.End.hour*60 + matiere.End.minute): #Si la matière est en cours
+                    is_matiere_now = True
+                    timeline_coord = header_height + (current_minute_time - edt.Min)*minutes_to_pixels_ratio
+                    draw.line(((config.width/5)*day, timeline_coord, (config.width/5)*(day+1), timeline_coord), fill=config.timeline_color, width=3) #Tracer la timeline
+                    timeline_drawed = True
 
 
-            #ProfessorText
+            #Nom du professeur
             if matiere.Professor != None:
-              draw.text((round(config.width/5)*(day+1)-5, matiereBottomCoord - round(config.height/(60+5))), " ".join(matiere.Professor.split(' ')[0:-1]), anchor='rm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/60)))
+              draw.text((round(config.width/5)*(day+1)-5, bottom_coords - round(config.height/(60+5))), " ".join(matiere.Professor.split(' ')[0:-1]), anchor='rm', fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/60)))
 
 
             hour_anchor = 'mm'
             hour_x = round(config.width/5)*day + round(config.width/10)
             hour_topbottom_margin = round(config.height/(44+5))
 
-            if abs(matiereTopCoord-matiereBottomCoord) < 125:
+            if abs(top_coords-bottom_coords) < 125: #Si la matière est trop courte (ex tiers-temps), modifier la position du texte (sinon le texte se superpose)
                 hour_anchor = 'lm'
                 hour_x = round(config.width/5)*day + 10
                 hour_topbottom_margin = round(config.height/(44+10))
 
-            #StartText
-            draw.text((hour_x, matiereTopCoord + hour_topbottom_margin), str(matiere.Start.hour).zfill(2) + ":" + str(matiere.Start.minute).zfill(2), anchor=hour_anchor, fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
+            #Heure de début
+            draw.text((hour_x, top_coords + hour_topbottom_margin), str(matiere.Start.hour).zfill(2) + ":" + str(matiere.Start.minute).zfill(2), anchor=hour_anchor, fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
 
-            #EndText
-            draw.text((hour_x, matiereBottomCoord - hour_topbottom_margin), str(matiere.End.hour).zfill(2) + ":" + str(matiere.End.minute).zfill(2), anchor=hour_anchor, fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
+            #Heure de fin
+            draw.text((hour_x, bottom_coords - hour_topbottom_margin), str(matiere.End.hour).zfill(2) + ":" + str(matiere.End.minute).zfill(2), anchor=hour_anchor, fill=config.text_color, font=ImageFont.truetype("arial.ttf", round(config.height/44)))
 
-            #MainText
-            if name in config.Name_Dictionary:
+            #Titre
+            if name in config.Name_Dictionary: #Si la matière a un nom customisé dans la configuration, l'appliquer
                 name = config.Name_Dictionary[name]
                 
             title = ""
-            if  len(matiere.ID.split('_')) == 5:
-              type = matiere.ID.split('_')[3]
-              title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '').replace('\\,', ' / ') if matiere.Location != '' else type + " " + name
-            else:
-              title = name + "\n" + matiere.Location.replace(' (V)', '').replace('\\,', ' / ') if matiere.Location != '' else name
+            if len(matiere.ID.split('_')) == 5: #Si le format de l'identifiant de la matière est classique
+              type = matiere.ID.split('_')[3] #Le type est en 4ème position (CM, TD, TP...)
+              if matiere.Location != '': #Si la matière a une salle précisée
+                  title = type + " " + name + "\n" + matiere.Location.replace(' (V)', '').replace('\\,', ' / ')
+              else: #Sinon (ex: Sport)
+                  title = type + " " + name
+            else: #Si l'ID n'est pas classique, on ne peut pas connaître le type de cours
+              if matiere.Location != '': #Si la matière a une salle précisée
+                  title = name + "\n" + matiere.Location.replace(' (V)', '').replace('\\,', ' / ')
+              else:
+                  title = name
 
-
-            if isCurrentMatiere:
-                draw.text((round(config.width/5)*day + round(config.width/10), (matiereTopCoord + matiereBottomCoord)/2), title, anchor='mm', fill=config.text_color, align='center', font=ImageFont.truetype("arialbd.ttf", round(config.height/40)))
+            if is_matiere_now: #Si la matière est en cours, mettre le titre en gras
+                draw.text((round(config.width/5)*day + round(config.width/10), (top_coords + bottom_coords)/2), title, anchor='mm', fill=config.text_color, align='center', font=ImageFont.truetype("arialbd.ttf", round(config.height/40)))
             else:
-                draw.text((round(config.width/5)*day + round(config.width/10), (matiereTopCoord + matiereBottomCoord)/2), title, anchor='mm', fill=config.text_color, align='center', font=ImageFont.truetype("arial.ttf", round(config.height/40)))
+                draw.text((round(config.width/5)*day + round(config.width/10), (top_coords + bottom_coords)/2), title, anchor='mm', fill=config.text_color, align='center', font=ImageFont.truetype("arial.ttf", round(config.height/40)))
     
-            #TimeLine
-            if now.weekday() == day and not TimeLineDrawed:
-                currentMinuteTime = now.hour*60 + now.minute
-                LineCoord = headerHeight + (currentMinuteTime - edt.Min)*HeightMinutesRatio
-                draw.line(((config.width/5)*day, LineCoord, (config.width/5)*(day+1), LineCoord), fill=config.timeline_color, width=3)
+            #TimeLine (part2)
+            if now.weekday() == day and not timeline_drawed: #Si la timeline n'a pas déjà été tracée sur une matière
+                current_minute_time = now.hour*60 + now.minute
+                if current_minute_time >= edt.Min: #Sans cette condition, la timeline est tracée par dessus le titre des jours. A tester.
+                    timeline_coord = header_height + (current_minute_time - edt.Min)*minutes_to_pixels_ratio
+                    draw.line(((config.width/5)*day, timeline_coord, (config.width/5)*(day+1), timeline_coord), fill=config.timeline_color, width=3)
 
-        #Header Part 2
-        draw.line((0, headerHeight, config.width, headerHeight), fill=(0,0,0), width=3)
+                #timeline_drawed = True         #Il faut logiquement le rajouter (même si ça marche sans). A tester plus tard.
 
-        #Day Vertical Lines
+        #Trace une ligne pour séparer l'entête et le contenu
+        draw.line((0, header_height, config.width, header_height), fill=(0,0,0), width=3)
+
+        #Trace une ligne verticale entre les jours
         draw.line(((config.width/5)*day, 0, (config.width/5)*day, config.height), fill=(0, 0, 0), width=3)
 
         
     arr = io.BytesIO()
-    img.save(arr, format='PNG')
+    img.save(arr, format='PNG') #Stocke les données de l'image dans arr, pour pouvoir l'envoyer sur Discord.
+
     return arr
 
+#Supprime le dernier EDT
 async def DeleteOldEDT(config):
-    async for message in client.get_channel(config.channel_id).history():
-        if message.author == client.user:
-            if message.content.startswith(config.name):
-                await message.delete()
+    async for message in client.get_channel(config.channel_id).history(): #Pour chaque message du salon sur lequel l'EDT est posté
+        if message.author == client.user: #Si le message a été envoyé par le bot
+            if message.content.startswith(config.name): #Si le message commence par le nom de la configuration
+                await message.delete() #Supprimer le message
 
 async def Log(message, send_to_discord=True):
-    UpdateTime()
+    update_time()
     print('{' + str(now.time()) + '}   ' + message)
     if send_to_discord:
         await client.get_channel(895410453335928863).send(content= '> ' + message)
@@ -357,32 +386,33 @@ async def Log(message, send_to_discord=True):
 
 @client.event
 async def on_ready():
-    global now
-
-    UpdateTime()
+    update_time()
+    
     await Log("Esibot est en ligne.")
 
     Loop.start()
 
-interval_update = False
+interval_update = False #Tout le code lié à interval_update permet de s'assurer que le délai entre deux itérations est actualisé (la fct change_interval a un comportement un peu ambigu)
 @tasks.loop(minutes=45)
 async def Loop():
     global interval_update
 
-    if not interval_update:
+    update_time()
+
+    if not interval_update: 
         await UpdateLoopInterval()
 
         min_hour = 8 if now.weekday() >= 5 else 7
     
-        if min_hour <= now.hour <= 22:
+        if min_hour <= now.hour <= 22: #Si il est entre 7h (ou 8h en WE) et 22h
             await Log("Mise à jour en cours...")
             configsError = []
-            for config in configs.ConfigList:
+            for config in configs.ConfigList: #Pour chaque configuration
                 await Log("• " + config.name)
-                try:
-                    UpdateTime()
+                try: #Essayer de faire la mise à jour de l'EDT (il peut y avoir des erreurs aléatoires et imprévisibles mais ne doit pas planter)
+                    update_time()
                     await Log("    Téléchargement et analyse de l'EDT...")
-                    edt = ParseEDT(DownloadEDT(config.edt_id))
+                    edt = ParseEDT(download_edt(config.edt_id))
                     await Log("    Création de l'image...")
                     edtIMG = DrawEDT(edt, config)
                     edtIMG.seek(0)
@@ -390,20 +420,22 @@ async def Loop():
                     await DeleteOldEDT(config)
                     await client.get_channel(config.channel_id).send(file=discord.File(edtIMG, filename='EDT.png'), content=config.name + '\nDernière mise à jour: ' + now.strftime("%d/%m/%Y %H:%M:%S") + "\n\n" + GetNextMatiere(edt, config))
                     await Log('    ' + config.name + " a été mis à jour.")
-                except Exception as e:
+                except Exception as e: #Si il y a eu une erreur (l'actualisation n'a pas aboutie)
                     await Log('    Erreur : ' + str(e))
                     await Log('    Ligne ' + str(sys.exc_info()[2].tb_lineno))
                     await Log("    Nouvelle tentative dans quelques secondes.")
-                    configsError.append(config)
+                    configsError.append(config) #Ajouter la configuration à la liste des configurations qui ont échouées
 
-            if len(configsError) > 0:
-                time.sleep(10)
+            if len(configsError) > 0: #Si il y a eu des erreurs
+                time.sleep(10) #Attendre 10 secondes (certaines erreurs sont provoquées par un problème de réseau qui se résoud tout seul après quelques secondes)
+
+                #Recommencer la mise à jour des configurations qui ont échouées
                 for config in configsError:
                     await Log("• Nouvelle tentative pour " + config.name)
                     try:
-                        UpdateTime()
+                        update_time()
                         await Log("    Téléchargement et analyse de l'EDT...")
-                        edt = ParseEDT(DownloadEDT(config.edt_id))
+                        edt = ParseEDT(download_edt(config.edt_id))
                         await Log("    Création de l'image...")
                         edtIMG = DrawEDT(edt, config)
                         edtIMG.seek(0)
@@ -412,21 +444,26 @@ async def Loop():
                         await client.get_channel(config.channel_id).send(file=discord.File(edtIMG, filename='EDT.png'), content=config.name + '\nDernière mise à jour: ' + now.strftime("%d/%m/%Y %H:%M:%S") + "\n\n" + GetNextMatiere(edt, config))
                         await Log('    ' + config.name + " a été mis à jour.")
                     except Exception as e:
-                        await Log('<@!420914917420433408>')
+                        await Log('<@!420914917420433408>') #Si il y a encore une erreur, me mentionner sur Discord
                         await Log('    Erreur : ' + str(e))
                         await Log('    Ligne ' + str(sys.exc_info()[2].tb_lineno))
                         await Log("    Abandon de la configuration. Nouvelle tentative lors de la prochaine mise à jour.")
 
             await Log("Mise à jour terminée.\n")
 
+        #Redémarrer la boucle et la faire 'tourner dans le vide' une fois, pour s'assurer que le délai fixé sera pris en compte
         interval_update = True
         Loop.restart()
     else:
+        #Une fois que la boucle a fait une itération pour rien, reprendre un fonctionnement normal
         interval_update = False
 
 async def UpdateLoopInterval():
-    UpdateTime()
-    if now.hour > 22:
+    #Les délais et horaires choisis permettent au bot d'utiliser tout le quota gratuit disponible par mois sans le dépasser sur Heroku
+
+    if now.hour > 22: #Si il est plus de 22h
+
+        #Calcule la date et l'heure de la prochaine mise à jour (le lendemain)
         tomorrow_date = now + datetime.timedelta(days=1)
         tomorrow_date = tomorrow_date.replace(minute=0, second=0, microsecond=0)
         if tomorrow_date.weekday() <= 4:
@@ -434,11 +471,11 @@ async def UpdateLoopInterval():
         else:
             tomorrow_date = tomorrow_date.replace(hour=8)
 
-        next_loop_in_seconds = (tomorrow_date - now).seconds
-        Loop.change_interval(seconds=next_loop_in_seconds)
+        next_loop_in_seconds = (tomorrow_date - now).seconds #Calcule le délai nécessaire pour que la prochaine itération se fasse le lendemain à 7h ou 8h (selon si c'est le week-end)
+        Loop.change_interval(seconds=next_loop_in_seconds) #Applique ce délai
         await Log(f'Mise à jour suivante dans : {str(tomorrow_date - now)}.\n')
 
-    elif now.hour < (7 if now.weekday() <= 4 else 8):
+    elif now.hour < (7 if now.weekday() <= 4 else 8): #Si il est moins de 7h ou 8h (selon si c'est le week-end)
         start_date = now
         start_date = start_date.replace(minute=0, second=0, microsecond=0)
         if start_date.weekday() <= 4:
@@ -446,18 +483,18 @@ async def UpdateLoopInterval():
         else:
             start_date = start_date.replace(hour=8)
 
-        next_loop_in_seconds = (start_date - now).seconds
-        Loop.change_interval(seconds=next_loop_in_seconds)
+        next_loop_in_seconds = (start_date - now).seconds #Calcule le délai nécessaire pour que la prochaine itération se fasse à 7h ou 8h
+        Loop.change_interval(seconds=next_loop_in_seconds) #Applique ce délai
         await Log(f'Mise à jour suivante dans : {str(start_date - now)}.\n')
 
-    else:
-        if now.weekday() <= 4:
+    else: #Si il est entre 7h (ou 8h) et 22h
+        if now.weekday() <= 4: #Si c'est la semaine, délai de 45 minutes
             Loop.change_interval(minutes=45)
             await Log(f'Intervalle de mise à jour fixé à 45 minutes.')
         else:
-            Loop.change_interval(hours=2)
+            Loop.change_interval(hours=2) #Si c'est le week-end, délai de 2 heures
             await Log(f'Intervalle de mise à jour fixé à 2 heures.')
 
 
 
-client.run(BOT_TOKEN)
+client.run(BOT_TOKEN) #Lance le bot
