@@ -41,7 +41,10 @@ _1A_Name_Dictionary = {'MA121': 'Maths (MA121)',
                       'CE102': 'Électronique numérique\n(CE102)',
                       'PX111-Auto':'PX111 Automatique',
                       'PX111-Elec': 'PX111 Électronique',
-                      'PX111-Info':'PX111 Informatique'}
+                      'PX112-Elec': 'PX112 Électronique',
+                      'PX111-Info':'PX111 Informatique',
+                      'PX112-Info': 'PX112 Informatique',
+                      'PX112-CE': 'PX112 Électronique numérique',}
 
 _1A_Color_Dictionary = {'MA121': '#FFC551',
                         'DS MA121 - F. Tran-Minh': '#FFC551',
@@ -69,13 +72,13 @@ _1A_Color_Dictionary = {'MA121': '#FFC551',
 
 
 _1ATP1TEST = config()
-_1ATP1TEST.edt_id = 5957
-_1ATP1TEST.channel_id = 883450350345015410
+_1ATP1TEST.edt_id = 5957 #L'id s'obtient en allant sur l'EDT du TP en question, à la fin de l'url : '...direct_planning.jsp?resources=5957'. Prendre uniquement des IDs de TP.
+_1ATP1TEST.channel_id = 883450350345015410 #Identifiant du salon Discord sur lequel il faut poster l'EDT. Dernière partie de l'URL du salon. Ex: 'https://discord.com/channels/883450350345015407/883450350345015410'
 _1ATP1TEST.name = "EDT TP1"
 _1ATP1TEST.height = 1080
 _1ATP1TEST.width = 1920
 _1ATP1TEST.background_color = "#353535"
-_1ATP1TEST.background_image = 'https://cutewallpaper.org/21/background-hd-black/59-Dark-Desktop-Background-on-WallpaperSafari.jpg'
+#_1ATP1TEST.background_image = 'image.png'
 _1ATP1TEST.header_color = "#353535"
 _1ATP1TEST.headertext_color = 'white'
 _1ATP1TEST.text_color = "black"
