@@ -214,7 +214,7 @@ def GetNextMatiere(edt, config):
         else: #Sinon (comme en sport)
             return "Prochain cours: " + name + " à " + str(smallestDelta[0].Start.hour).zfill(2) + ":" + str(smallestDelta[0].Start.minute).zfill(2) + "."
     else:
-      return 'Bonnes vacances !'
+      return ''
 
 #Crée l'image de l'emploi du temps
 def DrawEDT(edt, config):
