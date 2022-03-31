@@ -492,8 +492,8 @@ async def UpdateLoopInterval():
             Loop.change_interval(minutes=45)
             await Log(f'Intervalle de mise à jour fixé à 45 minutes.')
         else:
-            Loop.change_interval(hours=2) #Si c'est le week-end, délai de 2 heures
-            await Log(f'Intervalle de mise à jour fixé à 2 heures.')
+            Loop.change_interval(hours=3) #Si c'est le week-end, délai de 3 heures
+            await Log(f'Intervalle de mise à jour fixé à 3 heures.')
 
 
 
